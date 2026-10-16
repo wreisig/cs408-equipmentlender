@@ -9,7 +9,7 @@ equipment workflows will be implemented in later checkpoints.
 - Backend: C with the Mongoose Web Server
 - Database: SQLite
 - Frontend: HTML with Bootstrap 5
-- Unit-test framework planned for the next implementation increment: Unity
+- Unit-test framework: Unity C unit-testing framework
 
 Mongoose is downloaded at a pinned version (`7.17`) by `start.sh` and
 `deploy/deploy.sh`, so a fresh clone does not require a separately installed
@@ -21,7 +21,7 @@ On Ubuntu/Debian, install the system tools once:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y gcc sqlite3 curl
+sudo apt-get install -y gcc sqlite3 libsqlite3-dev curl
 ```
 
 From the repository root on your laptop:
@@ -30,7 +30,7 @@ From the repository root on your laptop:
 ./start.sh
 ```
 
-The script downloads Mongoose if needed, compiles the C server, creates the
+The script downloads Mongoose if needed, compiles the C server, initializes the
 SQLite schema in `data/equipment.db`, and starts the app. Open
 <http://localhost:8080/>. The health check is
 <http://localhost:8080/api/health>. Use `PORT=8081 ./start.sh` to select a
@@ -57,9 +57,10 @@ Then run this command inside the EC2 terminal:
 sudo bash deploy/setup-ec2.sh
 ```
 
-This installs GCC, SQLite, curl, nginx, and rsync. It installs the systemd
-unit, configures nginx to forward port 80 to the app on port 8080, and enables
-the service at boot.
+This installs GCC, SQLite development libraries, curl, nginx, and rsync. It
+creates the application directories, installs the systemd unit, configures
+nginx to forward port 80 to the app on port 8080, and enables the service at
+boot.
 
 ### Repeatable deployment from the laptop
 
@@ -86,8 +87,38 @@ Never commit `.pem` keys or `.env` files. They are ignored by this repository.
 
 ## Checkpoint 1 scope
 
-Core work includes the Mongoose Home page, health endpoint, SQLite foundation,
-repeatable startup, EC2 deployment, and documented run instructions. Planned
-core work includes the equipment catalog, equipment management, loans/returns,
-validation, and maintenance records. Stretch work may include authentication,
-image uploads, reminders, and reporting.
+### Core functionality
+
+- Dashboard and equipment statistics
+- Equipment catalog and details
+- Search and filtering
+- Equipment CRUD
+- Loans and returns
+- Borrowing history
+- Input validation and success/error messages
+- Maintenance records
+- SQLite persistence
+- EC2 deployment
+- Automated tests
+
+### Stretch functionality
+
+- Authentication and role-based access
+- Equipment image uploads
+- Email reminders
+- Reports and data exports
+- Reservation queues
+
+Checkpoint 1 delivers the Mongoose Home page, health endpoint, repeatable
+startup, EC2 deployment, and documented run instructions. Checkpoint 2
+formalizes the SQLite persistence foundation and initial tables. Later
+checkpoints implement the remaining core functionality.
+
+## Automated testing
+
+The project will use the Unity C unit-testing framework. The test suite will
+cover database initialization and operations, equipment creation and updates,
+search and filtering, input validation, loan creation, equipment returns,
+maintenance records, and rules preventing unavailable equipment from being
+borrowed. Tests will run locally and again against the deployed EC2
+application.
