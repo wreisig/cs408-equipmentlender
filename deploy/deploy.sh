@@ -46,7 +46,7 @@ else
 fi
 
 ssh "${ssh_options[@]}" "ubuntu@${host}" \
-  'cd /opt/equipment-library && mkdir -p data && gcc -std=c11 -Wall -Wextra -Werror -O2 app/main.c -o app/equipment-library && sudo systemctl restart equipment-library'
+  'cd /opt/equipment-library && mkdir -p data && bash app/get-mongoose.sh && gcc -std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror -O2 app/main.c app/mongoose.c -lsqlite3 -o app/equipment-library && sudo systemctl restart equipment-library'
 
 curl --fail --silent --show-error --max-time 10 "http://${host}/api/health"
 printf '\nDeployed successfully: http://%s/\n' "$host"

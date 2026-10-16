@@ -1,98 +1,86 @@
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <signal.h>
+#include "mongoose.h"
+#include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
-#define DEFAULT_PORT 8080
-#define BUFFER_SIZE 4096
-
-static volatile sig_atomic_t keep_running = 1;
-
-static void handle_signal(int signal_number) {
-    (void)signal_number;
-    keep_running = 0;
+static int initialize_database(const char *path) {
+  sqlite3 *db = NULL;
+  const char *schema =
+      "PRAGMA foreign_keys = ON;"
+      "CREATE TABLE IF NOT EXISTS categories ("
+      "category_id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, "
+      "description TEXT);"
+      "CREATE TABLE IF NOT EXISTS equipment ("
+      "equipment_id INTEGER PRIMARY KEY, category_id INTEGER NOT NULL, "
+      "name TEXT NOT NULL, description TEXT, serial_number TEXT UNIQUE, "
+      "condition TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'Available', "
+      "location TEXT, purchase_date TEXT, created_at TEXT NOT NULL, "
+      "updated_at TEXT NOT NULL, FOREIGN KEY (category_id) "
+      "REFERENCES categories(category_id));"
+      "CREATE TABLE IF NOT EXISTS borrowers ("
+      "borrower_id INTEGER PRIMARY KEY, name TEXT NOT NULL, "
+      "email TEXT NOT NULL UNIQUE, phone TEXT, active INTEGER NOT NULL DEFAULT 1, "
+      "created_at TEXT NOT NULL);"
+      "CREATE TABLE IF NOT EXISTS loans ("
+      "loan_id INTEGER PRIMARY KEY, equipment_id INTEGER NOT NULL, "
+      "borrower_id INTEGER NOT NULL, checkout_date TEXT NOT NULL, "
+      "due_date TEXT NOT NULL, return_date TEXT, status TEXT NOT NULL, notes TEXT, "
+      "FOREIGN KEY (equipment_id) REFERENCES equipment(equipment_id), "
+      "FOREIGN KEY (borrower_id) REFERENCES borrowers(borrower_id));"
+      "CREATE TABLE IF NOT EXISTS maintenance_records ("
+      "maintenance_id INTEGER PRIMARY KEY, equipment_id INTEGER NOT NULL, "
+      "description TEXT NOT NULL, reported_date TEXT NOT NULL, "
+      "completed_date TEXT, status TEXT NOT NULL, cost REAL, "
+      "FOREIGN KEY (equipment_id) REFERENCES equipment(equipment_id));";
+  int result = sqlite3_open(path, &db);
+  if (result == SQLITE_OK) result = sqlite3_exec(db, schema, NULL, NULL, NULL);
+  sqlite3_close(db);
+  return result == SQLITE_OK ? 0 : 1;
 }
 
-static void send_response(int client, const char *status, const char *content_type,
-                          const char *body) {
-    char response[BUFFER_SIZE];
-    int length = snprintf(response, sizeof(response),
-                          "HTTP/1.1 %s\r\n"
-                          "Content-Type: %s\r\n"
-                          "Content-Length: %zu\r\n"
-                          "Connection: close\r\n\r\n%s",
-                          status, content_type, strlen(body), body);
-    if (length > 0) {
-        (void)send(client, response, (size_t)length, 0);
-    }
+static void http_handler(struct mg_connection *connection, int event,
+                         void *event_data) {
+  if (event != MG_EV_HTTP_MSG) return;
+  struct mg_http_message *message = (struct mg_http_message *)event_data;
+  if (mg_match(message->uri, mg_str("/api/health"), NULL)) {
+    mg_http_reply(connection, 200, "Content-Type: application/json\r\n",
+                  "{\"status\":\"ok\"}\n");
+  } else if (mg_match(message->uri, mg_str("/"), NULL)) {
+    mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
+                  "<!doctype html><html lang=\"en\"><head>"
+                  "<meta charset=\"utf-8\"><meta name=\"viewport\" "
+                  "content=\"width=device-width, initial-scale=1\">"
+                  "<title>Equipment Lending Library</title>"
+                  "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
+                  "rel=\"stylesheet\"></head><body><main class=\"container py-5\">"
+                  "<h1>Equipment Lending Library</h1>"
+                  "<p class=\"lead\">Checkpoint 1 Home page</p>"
+                  "<p>Browse and manage lending-library equipment from one place.</p>"
+                  "</main></body></html>");
+  } else {
+    mg_http_reply(connection, 404, "", "Not found\n");
+  }
 }
 
 int main(void) {
-    const char *port_value = getenv("PORT");
-    int port = port_value != NULL ? atoi(port_value) : DEFAULT_PORT;
-    int server = socket(AF_INET, SOCK_STREAM, 0);
-    if (server < 0) {
-        perror("socket");
-        return EXIT_FAILURE;
-    }
-
-    int reuse_address = 1;
-    (void)setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &reuse_address,
-                     sizeof(reuse_address));
-
-    struct sockaddr_in address = {
-        .sin_family = AF_INET,
-        .sin_addr.s_addr = htonl(INADDR_ANY),
-        .sin_port = htons((uint16_t)port),
-    };
-    if (bind(server, (struct sockaddr *)&address, sizeof(address)) < 0 ||
-        listen(server, 16) < 0) {
-        perror("bind/listen");
-        close(server);
-        return EXIT_FAILURE;
-    }
-
-    signal(SIGINT, handle_signal);
-    signal(SIGTERM, handle_signal);
-    printf("Equipment Lending Library running at http://localhost:%d/\n", port);
-    fflush(stdout);
-
-    while (keep_running) {
-        int client = accept(server, NULL, NULL);
-        if (client < 0) {
-            if (keep_running) {
-                perror("accept");
-            }
-            continue;
-        }
-
-        char request[BUFFER_SIZE] = {0};
-        (void)recv(client, request, sizeof(request) - 1, 0);
-        if (strncmp(request, "GET /api/health", 15) == 0) {
-            send_response(client, "200 OK", "application/json",
-                          "{\"status\":\"ok\"}");
-        } else if (strncmp(request, "GET /", 5) == 0) {
-            send_response(client, "200 OK", "text/html; charset=utf-8",
-                          "<!doctype html><html lang=\"en\"><head>"
-                          "<meta charset=\"utf-8\"><meta name=\"viewport\" "
-                          "content=\"width=device-width, initial-scale=1\">"
-                          "<title>Equipment Lending Library</title>"
-                          "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
-                          "rel=\"stylesheet\"></head><body><main class=\"container py-5\">"
-                          "<h1>Equipment Lending Library</h1>"
-                          "<p class=\"lead\">Hello World! The EC2 deployment is working.</p>"
-                          "<p>Catalog, lending, and maintenance features will be added next.</p>"
-                          "</main></body></html>");
-        } else {
-            send_response(client, "404 Not Found", "text/plain", "Not found");
-        }
-        close(client);
-    }
-
-    close(server);
-    return EXIT_SUCCESS;
+  const char *port = getenv("PORT");
+  char listen_url[64];
+  if (port == NULL) port = "8080";
+  (void)snprintf(listen_url, sizeof(listen_url), "http://0.0.0.0:%s", port);
+  if (initialize_database("data/equipment.db") != 0) {
+    fprintf(stderr, "Could not initialize data/equipment.db\n");
+    return EXIT_FAILURE;
+  }
+  struct mg_mgr manager;
+  mg_mgr_init(&manager);
+  if (mg_http_listen(&manager, listen_url, http_handler, NULL) == NULL) {
+    fprintf(stderr, "Could not listen on %s\n", listen_url);
+    mg_mgr_free(&manager);
+    return EXIT_FAILURE;
+  }
+  printf("Equipment Lending Library running at http://localhost:%s/\n", port);
+  fflush(stdout);
+  for (;;) mg_mgr_poll(&manager, 1000);
+  mg_mgr_free(&manager);
+  return EXIT_SUCCESS;
 }

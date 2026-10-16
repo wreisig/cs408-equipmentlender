@@ -7,7 +7,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y gcc sqlite3 nginx rsync
+DEBIAN_FRONTEND=noninteractive apt-get install -y gcc sqlite3 libsqlite3-dev curl nginx rsync
 
 install -d -o ubuntu -g ubuntu /opt/equipment-library
 install -d -o ubuntu -g ubuntu /opt/equipment-library/data
