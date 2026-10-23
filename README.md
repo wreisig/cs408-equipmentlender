@@ -1,8 +1,9 @@
 # Equipment Lending Library
 
 Checkpoint 1 provides a reproducible C/Mongoose/SQLite application foundation.
-The Mongoose server currently serves the Home page and `/api/health`; the
-equipment workflows will be implemented in later checkpoints.
+The Mongoose server currently serves the Home page, `/api/health`, and the
+database verification endpoint `/api/database`; equipment workflows will be
+implemented in later checkpoints.
 
 ## Technology and testing
 
@@ -33,7 +34,8 @@ From the repository root on your laptop:
 The script downloads Mongoose if needed, compiles the C server, initializes the
 SQLite schema in `data/equipment.db`, and starts the app. Open
 <http://localhost:8080/>. The health check is
-<http://localhost:8080/api/health>. Use `PORT=8081 ./start.sh` to select a
+<http://localhost:8080/api/health>, and the database check is
+<http://localhost:8080/api/database>. Use `PORT=8081 ./start.sh` to select a
 different port. Stop the server with `Ctrl+C`.
 
 ## EC2 setup and deployment
@@ -85,6 +87,32 @@ After the instance returns, reload the live URL without logging in again.
 
 Never commit `.pem` keys or `.env` files. They are ignored by this repository.
 
+## Checkpoint 2 database foundation
+
+On every startup, the application opens `data/equipment.db` and runs an
+idempotent SQLite transaction. It creates the `categories`, `equipment`,
+`borrowers`, `loans`, and `maintenance_records` tables, their foreign-key
+relationships, and indexes. Existing data is preserved because the schema uses
+`CREATE TABLE IF NOT EXISTS`.
+
+After starting the application, verify the database foundation with:
+
+```bash
+curl http://localhost:8080/api/database
+```
+
+The expected response is:
+
+```json
+{"status":"ok","initial_tables":5}
+```
+
+For the deployed application, use:
+
+```bash
+curl http://PUBLIC_IP/api/database
+```
+
 ## Checkpoint 1 scope
 
 ### Core functionality
@@ -109,10 +137,11 @@ Never commit `.pem` keys or `.env` files. They are ignored by this repository.
 - Reports and data exports
 - Reservation queues
 
-Checkpoint 1 delivers the Mongoose Home page, health endpoint, repeatable
+Checkpoint 1 delivered the Mongoose Home page, health endpoint, repeatable
 startup, EC2 deployment, and documented run instructions. Checkpoint 2
-formalizes the SQLite persistence foundation and initial tables. Later
-checkpoints implement the remaining core functionality.
+formalizes the SQLite persistence foundation, initial tables, relationships,
+indexes, and database verification endpoint. Later checkpoints implement the
+remaining core functionality.
 
 ## Automated testing
 

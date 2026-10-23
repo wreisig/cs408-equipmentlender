@@ -15,7 +15,7 @@ fi
 
 mkdir -p data
 bash app/get-mongoose.sh
-gcc -std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror -O2 app/main.c app/mongoose.c \
+gcc -std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror -O2 app/main.c app/database.c app/mongoose.c \
   -lsqlite3 -o app/equipment-library
 
 port="${PORT:-8080}"
