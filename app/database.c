@@ -87,8 +87,17 @@ int database_seed_demo(const char *path) {
       "'Good', 'Borrowed', 'Sports Closet', datetime('now'), datetime('now')),"
       "(3, 3, 'Laptop Computer', 'Laptop for coursework and presentations', 'LAP-001', "
       "'Fair', 'Maintenance', 'IT Workbench', datetime('now'), datetime('now'));";
+  const char *loan_seed =
+      "INSERT OR IGNORE INTO borrowers"
+      "(borrower_id, name, email, active, created_at) VALUES "
+      "(1, 'Alex Morgan', 'alex.morgan@example.com', 1, datetime('now'));"
+      "INSERT OR IGNORE INTO loans"
+      "(loan_id, equipment_id, borrower_id, checkout_date, due_date, status, notes) VALUES "
+      "(1, 2, 1, date('now', '-2 day'), date('now', '+5 day'), 'Active', "
+      "'Return to the sports closet when complete.');";
   int result = sqlite3_open(path, &db);
   if (result == SQLITE_OK) result = sqlite3_exec(db, seed, NULL, NULL, NULL);
+  if (result == SQLITE_OK) result = sqlite3_exec(db, loan_seed, NULL, NULL, NULL);
   sqlite3_close(db);
   return result == SQLITE_OK ? 0 : 1;
 }
@@ -99,8 +108,10 @@ int database_equipment_json(const char *path, int equipment_id, char *output,
   sqlite3_stmt *statement = NULL;
   const char *query =
       "SELECT e.equipment_id, e.name, e.description, e.condition, e.status, "
-      "e.location, c.name FROM equipment e "
+      "e.location, c.name, b.name, l.status, l.due_date FROM equipment e "
       "JOIN categories c ON c.category_id = e.category_id "
+      "LEFT JOIN loans l ON l.equipment_id = e.equipment_id AND l.return_date IS NULL "
+      "LEFT JOIN borrowers b ON b.borrower_id = l.borrower_id "
       "WHERE (? = 0 OR e.equipment_id = ?) ORDER BY e.equipment_id;";
   int result = sqlite3_open(path, &db);
   size_t used = 0;
@@ -115,14 +126,21 @@ int database_equipment_json(const char *path, int equipment_id, char *output,
           output + used, output_size - used,
           "%s{\"id\":%d,\"name\":\"%s\",\"description\":\"%s\","
           "\"condition\":\"%s\",\"status\":\"%s\",\"location\":\"%s\","
-          "\"category\":\"%s\"}",
+          "\"category\":\"%s\",\"borrower\":\"%s\",\"loan_status\":\"%s\","
+          "\"due_date\":\"%s\"}",
           rows == 0 ? "" : ",", sqlite3_column_int(statement, 0),
           (const char *)sqlite3_column_text(statement, 1),
           (const char *)sqlite3_column_text(statement, 2),
           (const char *)sqlite3_column_text(statement, 3),
           (const char *)sqlite3_column_text(statement, 4),
           (const char *)sqlite3_column_text(statement, 5),
-          (const char *)sqlite3_column_text(statement, 6));
+          (const char *)sqlite3_column_text(statement, 6),
+          sqlite3_column_type(statement, 7) == SQLITE_NULL ? "" :
+              (const char *)sqlite3_column_text(statement, 7),
+          sqlite3_column_type(statement, 8) == SQLITE_NULL ? "" :
+              (const char *)sqlite3_column_text(statement, 8),
+          sqlite3_column_type(statement, 9) == SQLITE_NULL ? "" :
+              (const char *)sqlite3_column_text(statement, 9));
       if (written < 0 || (size_t)written >= output_size - used) {
         result = SQLITE_TOOBIG;
         break;

@@ -92,6 +92,8 @@ static void http_handler(struct mg_connection *connection, int event,
                   "<span class=\"badge text-bg-secondary\">${item.status}</span> "
                   "<span class=\"badge text-bg-info\">${item.category}</span>"
                   "<p class=\"mt-2 mb-0\">Condition: ${item.condition}<br>Location: ${item.location}</p>"
+                  "${item.borrower ? `<p class=\"mb-0\">Borrower: ${item.borrower}<br>"
+                  "Loan status: ${item.loan_status}<br>Due: ${item.due_date}</p>` : ''}"
                   "</div></div></div>`});</script></main></body></html>", json);
   } else if (mg_match(message->uri, mg_str("/"), NULL)) {
     mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
