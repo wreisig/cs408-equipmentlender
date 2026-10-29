@@ -1,9 +1,8 @@
 # Equipment Lending Library
 
-Checkpoint 1 provides a reproducible C/Mongoose/SQLite application foundation.
-The Mongoose server currently serves the Home page, `/api/health`, and the
-database verification endpoint `/api/database`; equipment workflows will be
-implemented in later checkpoints.
+Checkpoint 3 adds the first database-backed equipment library features. The
+Mongoose server serves the Home page, an equipment catalog, equipment details,
+and JSON endpoints for health, database verification, and equipment data.
 
 ## Technology and testing
 
@@ -113,6 +112,32 @@ For the deployed application, use:
 curl http://PUBLIC_IP/api/database
 ```
 
+## Checkpoint 3 equipment library
+
+The catalog is available at:
+
+```text
+http://PUBLIC_IP/equipment
+```
+
+The JSON catalog endpoint is:
+
+```bash
+curl http://PUBLIC_IP/api/equipment
+```
+
+Individual equipment details are available using the equipment ID:
+
+```bash
+curl http://PUBLIC_IP/api/equipment/1
+```
+
+The application seeds three repeatable demonstration records on first startup:
+an analog synthesizer, a tennis racquet, and a laptop computer. The records
+show Available, Borrowed, and Maintenance statuses so the catalog demonstrates
+availability information. The seed uses `INSERT OR IGNORE`, so restarting the
+application does not duplicate records.
+
 ## Checkpoint 1 scope
 
 ### Core functionality
@@ -139,9 +164,10 @@ curl http://PUBLIC_IP/api/database
 
 Checkpoint 1 delivered the Mongoose Home page, health endpoint, repeatable
 startup, EC2 deployment, and documented run instructions. Checkpoint 2
-formalizes the SQLite persistence foundation, initial tables, relationships,
-indexes, and database verification endpoint. Later checkpoints implement the
-remaining core functionality.
+formalized the SQLite persistence foundation, initial tables, relationships,
+indexes, and database verification endpoint. Checkpoint 3 delivers the first
+equipment catalog, availability display, and equipment detail data. Later
+checkpoints implement search, management, and lending workflows.
 
 ## Automated testing
 
