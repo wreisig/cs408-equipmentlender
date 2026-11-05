@@ -1,8 +1,8 @@
 # Equipment Lending Library
 
-Checkpoint 3 adds the first database-backed equipment library features. The
-Mongoose server serves the Home page, an equipment catalog, equipment details,
-and JSON endpoints for health, database verification, and equipment data.
+Checkpoint 4 adds server-side equipment search and filtering by name, category,
+condition, and availability/status, including clear empty-result and invalid-
+filter responses.
 
 ## Technology and testing
 
@@ -132,6 +132,24 @@ Individual equipment details are available using the equipment ID:
 curl http://PUBLIC_IP/api/equipment/1
 ```
 
+Search and filtering are available at:
+
+```bash
+curl "http://PUBLIC_IP/api/equipment/search?name=laptop"
+curl "http://PUBLIC_IP/api/equipment/search?category=Sports&status=Borrowed"
+```
+
+The catalog page accepts the same `name`, `category`, `condition`, and `status`
+query parameters:
+
+```text
+http://PUBLIC_IP/equipment?status=Available
+```
+
+An empty result returns a successful response with `"count":0` and the catalog
+page displays `No equipment matched your search.` Invalid condition or status
+values return HTTP 400 with an explanatory error.
+
 The application seeds three repeatable demonstration records on first startup:
 an analog synthesizer, a tennis racquet, and a laptop computer. The records
 show Available, Borrowed, and Maintenance statuses so the catalog demonstrates
@@ -165,9 +183,10 @@ application does not duplicate records.
 Checkpoint 1 delivered the Mongoose Home page, health endpoint, repeatable
 startup, EC2 deployment, and documented run instructions. Checkpoint 2
 formalized the SQLite persistence foundation, initial tables, relationships,
-indexes, and database verification endpoint. Checkpoint 3 delivers the first
-equipment catalog, availability display, and equipment detail data. Later
-checkpoints implement search, management, and lending workflows.
+indexes, and database verification endpoint. Checkpoint 3 delivered the first equipment catalog, availability display, and
+equipment detail data. Checkpoint 4 delivers search and filtering with empty-
+result and invalid-filter handling. Later checkpoints implement management and
+lending workflows.
 
 ## Automated testing
 
