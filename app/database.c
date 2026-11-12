@@ -228,3 +228,285 @@ int database_equipment_search(const char *path, const char *name,
   *row_count = rows;
   return result == SQLITE_OK ? 0 : 1;
 }
+
+static int category_id(sqlite3 *db, const char *name, int create) {
+  sqlite3_stmt *statement = NULL;
+  int id = 0;
+  if (create && sqlite3_prepare_v2(db,
+      "INSERT OR IGNORE INTO categories(name, description) VALUES (?, ?);",
+      -1, &statement, NULL) == SQLITE_OK) {
+    sqlite3_bind_text(statement, 1, name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 2, "Equipment category", -1, SQLITE_STATIC);
+    (void)sqlite3_step(statement);
+  }
+  sqlite3_finalize(statement);
+  statement = NULL;
+  if (sqlite3_prepare_v2(db, "SELECT category_id FROM categories WHERE name = ?;",
+                         -1, &statement, NULL) == SQLITE_OK) {
+    sqlite3_bind_text(statement, 1, name, -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(statement) == SQLITE_ROW) id = sqlite3_column_int(statement, 0);
+  }
+  sqlite3_finalize(statement);
+  return id;
+}
+
+int database_equipment_create(const char *path, const char *name,
+                              const char *description, const char *category,
+                              const char *condition, const char *status,
+                              const char *location, int *equipment_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int category_value;
+  if (result != SQLITE_OK) return 1;
+  category_value = category_id(db, category, 1);
+  if (category_value == 0 || sqlite3_prepare_v2(db,
+      "INSERT INTO equipment(category_id,name,description,condition,status,location,"
+      "created_at,updated_at) VALUES (?,?,?,?,?,?,datetime('now'),datetime('now'));",
+      -1, &statement, NULL) != SQLITE_OK) result = SQLITE_ERROR;
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, category_value);
+    sqlite3_bind_text(statement, 2, name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 3, description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 4, condition, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 5, status, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 6, location, -1, SQLITE_TRANSIENT);
+    result = sqlite3_step(statement);
+    if (result == SQLITE_DONE) *equipment_id = (int)sqlite3_last_insert_rowid(db);
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_DONE ? 0 : 1;
+}
+
+int database_equipment_update(const char *path, int equipment_id,
+                              const char *name, const char *description,
+                              const char *category, const char *condition,
+                              const char *status, const char *location) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int category_value;
+  int changed = 0;
+  if (result != SQLITE_OK) return 1;
+  category_value = category_id(db, category, 1);
+  if (category_value == 0 || sqlite3_prepare_v2(db,
+      "UPDATE equipment SET category_id=?,name=?,description=?,condition=?,status=?,"
+      "location=?,updated_at=datetime('now') WHERE equipment_id=?;",
+      -1, &statement, NULL) != SQLITE_OK) result = SQLITE_ERROR;
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, category_value);
+    sqlite3_bind_text(statement, 2, name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 3, description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 4, condition, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 5, status, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 6, location, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(statement, 7, equipment_id);
+    result = sqlite3_step(statement);
+    changed = sqlite3_changes(db);
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_DONE && changed == 1 ? 0 : 1;
+}
+
+int database_equipment_delete(const char *path, int equipment_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "DELETE FROM equipment WHERE equipment_id=?;", -1, &statement, NULL);
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, equipment_id);
+    result = sqlite3_step(statement);
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_DONE ? 0 : 1;
+}
+
+int database_loan_create(const char *path, int equipment_id,
+                         const char *borrower_name, const char *borrower_email,
+                         const char *due_date, int *loan_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int borrower_id = 0;
+  if (result != SQLITE_OK) return 1;
+  if (sqlite3_prepare_v2(db,
+      "SELECT borrower_id FROM borrowers WHERE email=?;", -1, &statement, NULL) == SQLITE_OK) {
+    sqlite3_bind_text(statement, 1, borrower_email, -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(statement) == SQLITE_ROW) borrower_id = sqlite3_column_int(statement, 0);
+  }
+  sqlite3_finalize(statement);
+  statement = NULL;
+  if (borrower_id == 0 && sqlite3_prepare_v2(db,
+      "INSERT INTO borrowers(name,email,created_at) VALUES (?,?,datetime('now'));",
+      -1, &statement, NULL) == SQLITE_OK) {
+    sqlite3_bind_text(statement, 1, borrower_name, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 2, borrower_email, -1, SQLITE_TRANSIENT);
+    result = sqlite3_step(statement);
+    if (result == SQLITE_DONE) borrower_id = (int)sqlite3_last_insert_rowid(db);
+  }
+  sqlite3_finalize(statement);
+  statement = NULL;
+  result = SQLITE_OK;
+  if (borrower_id == 0 || sqlite3_prepare_v2(db,
+      "INSERT INTO loans(equipment_id,borrower_id,checkout_date,due_date,status) "
+      "SELECT ?,?,date('now'),?,'Active' WHERE EXISTS "
+      "(SELECT 1 FROM equipment WHERE equipment_id=? AND status='Available');",
+      -1, &statement, NULL) != SQLITE_OK) result = SQLITE_ERROR;
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, equipment_id);
+    sqlite3_bind_int(statement, 2, borrower_id);
+    sqlite3_bind_text(statement, 3, due_date, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(statement, 4, equipment_id);
+    result = sqlite3_step(statement);
+    if (result == SQLITE_DONE && sqlite3_changes(db) == 1) {
+      *loan_id = (int)sqlite3_last_insert_rowid(db);
+      sqlite3_finalize(statement);
+      statement = NULL;
+      if (sqlite3_prepare_v2(db, "UPDATE equipment SET status='Borrowed',updated_at=datetime('now') WHERE equipment_id=?;",
+                             -1, &statement, NULL) == SQLITE_OK) {
+        sqlite3_bind_int(statement, 1, equipment_id);
+        result = sqlite3_step(statement);
+      }
+    } else result = SQLITE_CONSTRAINT;
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_DONE ? 0 : 1;
+}
+
+int database_loan_return(const char *path, int loan_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int changed = 0;
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "UPDATE loans SET status='Returned',return_date=date('now') "
+      "WHERE loan_id=? AND return_date IS NULL;", -1, &statement, NULL);
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, loan_id);
+    result = sqlite3_step(statement);
+    changed = sqlite3_changes(db);
+  }
+  sqlite3_finalize(statement);
+  if (result == SQLITE_DONE && changed == 1) {
+    statement = NULL;
+    if (sqlite3_prepare_v2(db,
+        "UPDATE equipment SET status='Available',updated_at=datetime('now') "
+        "WHERE equipment_id=(SELECT equipment_id FROM loans WHERE loan_id=?);",
+        -1, &statement, NULL) == SQLITE_OK) {
+      sqlite3_bind_int(statement, 1, loan_id);
+      (void)sqlite3_step(statement);
+    }
+    sqlite3_finalize(statement);
+  }
+  sqlite3_close(db);
+  return result == SQLITE_DONE && changed == 1 ? 0 : 1;
+}
+
+int database_maintenance_create(const char *path, int equipment_id,
+                                const char *description, const char *reported_date,
+                                double cost, int *maintenance_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "INSERT INTO maintenance_records(equipment_id,description,reported_date,status,cost) "
+      "VALUES (?,?,?,'Open',?);", -1, &statement, NULL);
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, equipment_id);
+    sqlite3_bind_text(statement, 2, description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 3, reported_date, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(statement, 4, cost);
+    result = sqlite3_step(statement);
+    if (result == SQLITE_DONE) *maintenance_id = (int)sqlite3_last_insert_rowid(db);
+  }
+  sqlite3_finalize(statement);
+  if (result == SQLITE_DONE) sqlite3_exec(db,
+      "UPDATE equipment SET status='Maintenance',updated_at=datetime('now') "
+      "WHERE equipment_id=(SELECT equipment_id FROM maintenance_records "
+      "WHERE maintenance_id=last_insert_rowid());", NULL, NULL, NULL);
+  sqlite3_close(db);
+  return result == SQLITE_DONE ? 0 : 1;
+}
+
+int database_maintenance_update(const char *path, int maintenance_id,
+                                const char *description, double cost) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int changed = 0;
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "UPDATE maintenance_records SET description=?,cost=? WHERE maintenance_id=?;",
+      -1, &statement, NULL);
+  if (result == SQLITE_OK) {
+    sqlite3_bind_text(statement, 1, description, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_double(statement, 2, cost);
+    sqlite3_bind_int(statement, 3, maintenance_id);
+    result = sqlite3_step(statement);
+    changed = sqlite3_changes(db);
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_DONE && changed == 1 ? 0 : 1;
+}
+
+int database_maintenance_complete(const char *path, int maintenance_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int changed = 0;
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "UPDATE maintenance_records SET status='Completed',completed_date=date('now') "
+      "WHERE maintenance_id=?;", -1, &statement, NULL);
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, maintenance_id);
+    result = sqlite3_step(statement);
+    changed = sqlite3_changes(db);
+  }
+  sqlite3_finalize(statement);
+  if (result == SQLITE_DONE && changed == 1) {
+    statement = NULL;
+    if (sqlite3_prepare_v2(db,
+        "UPDATE equipment SET status='Available',updated_at=datetime('now') "
+        "WHERE equipment_id=(SELECT equipment_id FROM maintenance_records "
+        "WHERE maintenance_id=?);", -1, &statement, NULL) == SQLITE_OK) {
+      sqlite3_bind_int(statement, 1, maintenance_id);
+      (void)sqlite3_step(statement);
+    }
+    sqlite3_finalize(statement);
+  }
+  sqlite3_close(db);
+  return result == SQLITE_DONE && changed == 1 ? 0 : 1;
+}
+
+int database_maintenance_json(const char *path, char *output, size_t output_size) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  size_t used = 0;
+  int rows = 0;
+  int result = sqlite3_open(path, &db);
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "SELECT maintenance_id,equipment_id,description,reported_date,"
+      "COALESCE(completed_date,''),status,COALESCE(cost,0) FROM maintenance_records "
+      "ORDER BY maintenance_id;", -1, &statement, NULL);
+  used = (size_t)snprintf(output, output_size, "[");
+  while (result == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW) {
+    int written = snprintf(output + used, output_size - used,
+      "%s{\"id\":%d,\"equipment_id\":%d,\"description\":\"%s\",\"reported_date\":\"%s\","
+      "\"completed_date\":\"%s\",\"status\":\"%s\",\"cost\":%.2f}",
+      rows++ == 0 ? "" : ",", sqlite3_column_int(statement, 0),
+      sqlite3_column_int(statement, 1), sqlite3_column_text(statement, 2),
+      sqlite3_column_text(statement, 3), sqlite3_column_text(statement, 4),
+      sqlite3_column_text(statement, 5), sqlite3_column_double(statement, 6));
+    if (written < 0 || (size_t)written >= output_size - used) result = SQLITE_TOOBIG;
+    else used += (size_t)written;
+  }
+  if (result == SQLITE_OK && used + 2 <= output_size) snprintf(output + used, output_size - used, "]");
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_OK ? 0 : 1;
+}

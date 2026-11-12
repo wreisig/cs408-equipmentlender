@@ -156,6 +156,34 @@ show Available, Borrowed, and Maintenance statuses so the catalog demonstrates
 availability information. The seed uses `INSERT OR IGNORE`, so restarting the
 application does not duplicate records.
 
+## Checkpoint 5 management workflows
+
+The management page is available at:
+
+```text
+http://PUBLIC_IP/manage
+```
+
+Equipment can be created with `POST /api/equipment`, updated with
+`PUT /api/equipment/<id>`, and deleted with `DELETE /api/equipment/<id>`.
+Requests use form fields named `name`, `description`, `category`, `condition`,
+`status`, and `location`. Required fields produce a descriptive HTTP 400
+response.
+
+Loans are created with `POST /api/loans` using `equipment_id`,
+`borrower_name`, `borrower_email`, and `due_date`. Only equipment with
+`Available` status can be borrowed; attempts to borrow borrowed, maintenance,
+or retired equipment return an error. Returns use
+`POST /api/loans/return/<loan-id>`.
+
+Maintenance records are created with `POST /api/maintenance` using
+`equipment_id`, `description`, `reported_date`, and optional `cost`. Records
+can be viewed with `GET /api/maintenance`, updated with
+`PUT /api/maintenance/<id>`, and completed with
+`POST /api/maintenance/complete/<id>`. Creating a maintenance record changes
+the equipment status to `Maintenance`, which prevents borrowing until the
+record is completed.
+
 ## Checkpoint 1 scope
 
 ### Core functionality
