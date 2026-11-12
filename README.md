@@ -174,7 +174,10 @@ Loans are created with `POST /api/loans` using `equipment_id`,
 `borrower_name`, `borrower_email`, and `due_date`. Only equipment with
 `Available` status can be borrowed; attempts to borrow borrowed, maintenance,
 or retired equipment return an error. Returns use
-`POST /api/loans/return/<loan-id>`.
+`POST /api/loans/return-equipment/<equipment-id>` so users can return an item
+using the equipment ID shown in the catalog. The lower-level
+`POST /api/loans/return/<loan-id>` endpoint is also available for direct API
+use.
 
 Maintenance records are created with `POST /api/maintenance` using
 `equipment_id`, `description`, `reported_date`, and optional `cost`. Records

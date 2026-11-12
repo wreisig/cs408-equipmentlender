@@ -407,6 +407,24 @@ int database_loan_return(const char *path, int loan_id) {
   return result == SQLITE_DONE && changed == 1 ? 0 : 1;
 }
 
+int database_loan_return_equipment(const char *path, int equipment_id) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  int result = sqlite3_open(path, &db);
+  int loan_id = 0;
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "SELECT loan_id FROM loans WHERE equipment_id=? AND return_date IS NULL "
+      "ORDER BY loan_id DESC LIMIT 1;", -1, &statement, NULL);
+  if (result == SQLITE_OK) {
+    sqlite3_bind_int(statement, 1, equipment_id);
+    if (sqlite3_step(statement) == SQLITE_ROW) loan_id = sqlite3_column_int(statement, 0);
+    else result = SQLITE_NOTFOUND;
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_OK && loan_id > 0 ? database_loan_return(path, loan_id) : 1;
+}
+
 int database_maintenance_create(const char *path, int equipment_id,
                                 const char *description, const char *reported_date,
                                 double cost, int *maintenance_id) {

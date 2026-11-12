@@ -209,6 +209,11 @@ static void http_handler(struct mg_connection *connection, int event,
     operation_reply(connection, database_loan_return("data/equipment.db",
                      equipment_id_from_uri(message)), "loan returned",
                      "loan could not be returned");
+  } else if (mg_match(message->uri, mg_str("/api/loans/return-equipment/#"), NULL) &&
+             mg_match(message->method, mg_str("POST"), NULL)) {
+    operation_reply(connection, database_loan_return_equipment("data/equipment.db",
+                     equipment_id_from_uri(message)), "loan returned",
+                     "no active loan found for this equipment");
   } else if (mg_match(message->uri, mg_str("/api/maintenance"), NULL) &&
              mg_match(message->method, mg_str("GET"), NULL)) {
     char json[16384];
@@ -361,7 +366,7 @@ static void http_handler(struct mg_connection *connection, int event,
                   "<form id=\"delete\" class=\"row g-2 mt-2\"><input class=\"form-control\" name=\"id\" "
                   "placeholder=\"Equipment ID\" required><button class=\"btn btn-danger\" type=\"submit\">Delete equipment</button></form>"
                   "<form id=\"return\" class=\"row g-2 mt-2\"><input class=\"form-control\" name=\"id\" "
-                  "placeholder=\"Loan ID\" required><button class=\"btn btn-success\" type=\"submit\">Record return</button></form>"
+                  "placeholder=\"Equipment ID\" required><button class=\"btn btn-success\" type=\"submit\">Record return</button></form>"
                   "<form id=\"complete\" class=\"row g-2 mt-2\"><input class=\"form-control\" name=\"id\" "
                   "placeholder=\"Maintenance ID\" required><button class=\"btn btn-secondary\" type=\"submit\">Complete maintenance</button></form>"
                   "<form id=\"maintenance-update\" class=\"row g-2 mt-2\"><input class=\"form-control\" name=\"id\" "
@@ -385,7 +390,7 @@ static void http_handler(struct mg_connection *connection, int event,
                   "document.getElementById('maintenance').onsubmit=e=>submitForm(e,'maintenance','/api/maintenance');"
                   "document.getElementById('update').onsubmit=e=>recordForm(e,'update','/api/equipment/{id}','PUT');"
                   "document.getElementById('delete').onsubmit=e=>recordForm(e,'delete','/api/equipment/{id}','DELETE');"
-                  "document.getElementById('return').onsubmit=e=>recordForm(e,'return','/api/loans/return/{id}','POST');"
+                  "document.getElementById('return').onsubmit=e=>recordForm(e,'return','/api/loans/return-equipment/{id}','POST');"
                   "document.getElementById('complete').onsubmit=e=>recordForm(e,'complete','/api/maintenance/complete/{id}','POST');"
                   "document.getElementById('maintenance-update').onsubmit=e=>recordForm(e,'maintenance-update','/api/maintenance/{id}','PUT');"
                   "</script></main></body></html>");

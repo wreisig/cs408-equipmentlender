@@ -25,6 +25,7 @@ int database_loan_create(const char *path, int equipment_id,
                          const char *borrower_name, const char *borrower_email,
                          const char *due_date, int *loan_id);
 int database_loan_return(const char *path, int loan_id);
+int database_loan_return_equipment(const char *path, int equipment_id);
 int database_maintenance_create(const char *path, int equipment_id,
                                 const char *description, const char *reported_date,
                                 double cost, int *maintenance_id);
