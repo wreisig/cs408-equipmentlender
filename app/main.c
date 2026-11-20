@@ -297,10 +297,25 @@ static void http_handler(struct mg_connection *connection, int event,
                     "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
                     "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
                     "%s<main class=\"container py-5 flex-grow-1\">"
-                    "<h1>Equipment Details</h1><pre>%s</pre>"
-                    "<a href=\"/equipment\">Back to catalog</a></main>%s"
+                    "<div id=\"details\"></div>"
+                    "<a class=\"btn btn-outline-secondary mt-3\" href=\"/equipment\">Back to catalog</a>"
+                    "</main>%s"
                     "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
-                    "</body></html>", shared_navigation, json, shared_footer);
+                    "<script>const items=%s;const item=items[0];"
+                    "document.getElementById('details').innerHTML=`"
+                    "<h1>${item.name}</h1>"
+                    "<div class=\"card\"><div class=\"card-body\">"
+                    "<p class=\"lead\">${item.description||'No description provided.'}</p>"
+                    "<span class=\"badge text-bg-secondary\">${item.status}</span> "
+                    "<span class=\"badge text-bg-info\">${item.category}</span>"
+                    "<dl class=\"row mt-4 mb-0\">"
+                    "<dt class=\"col-sm-3\">Condition</dt><dd class=\"col-sm-9\">${item.condition}</dd>"
+                    "<dt class=\"col-sm-3\">Location</dt><dd class=\"col-sm-9\">${item.location||'Not specified'}</dd>"
+                    "${item.borrower ? `<dt class=\"col-sm-3\">Borrower</dt><dd class=\"col-sm-9\">${item.borrower}</dd>"
+                    "<dt class=\"col-sm-3\">Loan status</dt><dd class=\"col-sm-9\">${item.loan_status}</dd>"
+                    "<dt class=\"col-sm-3\">Due date</dt><dd class=\"col-sm-9\">${item.due_date||'Not specified'}</dd>` : ''}"
+                    "</dl></div></div>`;</script>"
+                    "</body></html>", shared_navigation, shared_footer, json);
     }
   } else if (mg_match(message->uri, mg_str("/equipment"), NULL)) {
     char json[16384];
