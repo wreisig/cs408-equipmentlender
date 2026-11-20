@@ -1,2 +1,5 @@
 *.pem
 .env
+app/mongoose.c
+app/mongoose.h
+data/equipment.db

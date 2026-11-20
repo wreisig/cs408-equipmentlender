@@ -181,6 +181,26 @@ static int equipment_id_from_uri(struct mg_http_message *message) {
   return last_slash == NULL ? 0 : atoi(last_slash + 1);
 }
 
+static const char *shared_navigation =
+    "<nav class=\"navbar navbar-expand-lg navbar-dark bg-dark\">"
+    "<div class=\"container\"><a class=\"navbar-brand\" href=\"/\">"
+    "Equipment Lending Library</a><button class=\"navbar-toggler\" type=\"button\" "
+    "data-bs-toggle=\"collapse\" data-bs-target=\"#mainNav\"><span "
+    "class=\"navbar-toggler-icon\"></span></button><div class=\"collapse "
+    "navbar-collapse\" id=\"mainNav\"><ul class=\"navbar-nav ms-auto\">"
+    "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/\">Home</a></li>"
+    "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/equipment\">Equipment</a></li>"
+    "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/manage\">Manage</a></li>"
+    "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/loans\">Loans</a></li>"
+    "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/maintenance\">Maintenance</a></li>"
+    "<li class=\"nav-item\"><a class=\"nav-link\" href=\"/about\">About</a></li>"
+    "</ul></div></div></nav>";
+
+static const char *shared_footer =
+    "<footer class=\"bg-light border-top mt-5 py-3\"><div "
+    "class=\"container text-center text-secondary\">Equipment Lending Library "
+    "</div></footer>";
+
 static void http_handler(struct mg_connection *connection, int event,
                          void *event_data) {
   if (event != MG_EV_HTTP_MSG) return;
@@ -275,9 +295,12 @@ static void http_handler(struct mg_connection *connection, int event,
                     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
                     "<title>Equipment Details</title>"
                     "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
-                    "rel=\"stylesheet\"></head><body><main class=\"container py-5\">"
+                    "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                    "%s<main class=\"container py-5 flex-grow-1\">"
                     "<h1>Equipment Details</h1><pre>%s</pre>"
-                    "<a href=\"/equipment\">Back to catalog</a></main></body></html>", json);
+                    "<a href=\"/equipment\">Back to catalog</a></main>%s"
+                    "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                    "</body></html>", shared_navigation, json, shared_footer);
     }
   } else if (mg_match(message->uri, mg_str("/equipment"), NULL)) {
     char json[16384];
@@ -302,7 +325,8 @@ static void http_handler(struct mg_connection *connection, int event,
                   "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
                   "<title>Equipment Catalog</title>"
                   "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
-                  "rel=\"stylesheet\"></head><body><main class=\"container py-5\">"
+                  "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                  "%s<main class=\"container py-5 flex-grow-1\">"
                   "<h1>Equipment Catalog</h1><p>Browse the current equipment inventory "
                   "and availability.</p><form method=\"get\"><input name=\"name\" "
                   "placeholder=\"Search name\" value=\"%s\"><input name=\"category\" "
@@ -322,17 +346,95 @@ static void http_handler(struct mg_connection *connection, int event,
                   "<span class=\"badge text-bg-secondary\">${item.status}</span> "
                   "<span class=\"badge text-bg-info\">${item.category}</span>"
                   "<p class=\"mt-2 mb-0\">Condition: ${item.condition}<br>Location: ${item.location}</p>"
+                  "<a class=\"btn btn-sm btn-outline-primary mt-2\" href=\"/equipment/${item.id}\">View details</a>"
                   "${item.borrower ? `<p class=\"mb-0\">Borrower: ${item.borrower}<br>"
                   "Loan status: ${item.loan_status}<br>Due: ${item.due_date}</p>` : ''}"
-                  "</div></div></div>`});</script></main></body></html>",
-                  name, category, json);
+                  "</div></div></div>`});</script></main>%s"
+                  "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                  "</body></html>",
+                  shared_navigation, name, category, json, shared_footer);
+  } else if (mg_match(message->uri, mg_str("/loans"), NULL)) {
+    char json[16384];
+    if (database_loans_json("data/equipment.db", json, sizeof(json)) != 0) {
+      mg_http_reply(connection, 500, "Content-Type: text/plain\r\n",
+                    "Loans unavailable\n");
+    } else {
+      mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
+                    "<!doctype html><html><head><meta charset=\"utf-8\">"
+                    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                    "<title>Loans</title><link "
+                    "href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
+                    "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                    "%s<main class=\"container py-5 flex-grow-1\"><h1>Loan Records</h1>"
+                    "<p>View current and previous borrowing records.</p>"
+                    "<div class=\"table-responsive\"><table class=\"table table-striped\">"
+                    "<thead><tr><th>Loan</th><th>Equipment</th><th>Borrower</th>"
+                    "<th>Checkout</th><th>Due</th><th>Returned</th><th>Status</th></tr></thead>"
+                    "<tbody id=\"loanRows\"></tbody></table></div></main>%s"
+                    "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                    "<script>const loans=%s;const rows=document.getElementById('loanRows');"
+                    "loans.forEach(l=>rows.innerHTML+=`<tr><td>${l.id}</td><td>"
+                    "<a href=\"/equipment/${l.equipment_id}\">${l.equipment}</a></td>"
+                    "<td>${l.borrower}</td><td>${l.checkout_date}</td><td>${l.due_date}</td>"
+                    "<td>${l.return_date||'-'}</td><td>${l.status}</td></tr>`);"
+                    "if(!loans.length)rows.innerHTML='<tr><td colspan=\"7\">No loan records.</td></tr>';"
+                    "</script></body></html>",
+                    shared_navigation, shared_footer, json);
+    }
+  } else if (mg_match(message->uri, mg_str("/maintenance"), NULL)) {
+    char json[16384];
+    if (database_maintenance_json("data/equipment.db", json, sizeof(json)) != 0) {
+      mg_http_reply(connection, 500, "Content-Type: text/plain\r\n",
+                    "Maintenance unavailable\n");
+    } else {
+      mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
+                    "<!doctype html><html><head><meta charset=\"utf-8\">"
+                    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                    "<title>Maintenance</title><link "
+                    "href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
+                    "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                    "%s<main class=\"container py-5 flex-grow-1\"><h1>Maintenance Records</h1>"
+                    "<p>Track open and completed equipment maintenance.</p>"
+                    "<div class=\"table-responsive\"><table class=\"table table-striped\">"
+                    "<thead><tr><th>ID</th><th>Equipment ID</th><th>Description</th>"
+                    "<th>Reported</th><th>Completed</th><th>Status</th><th>Cost</th></tr></thead>"
+                    "<tbody id=\"maintenanceRows\"></tbody></table></div></main>%s"
+                    "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                    "<script>const records=%s;const rows=document.getElementById('maintenanceRows');"
+                    "records.forEach(r=>rows.innerHTML+=`<tr><td>${r.id}</td><td>"
+                    "<a href=\"/equipment/${r.equipment_id}\">${r.equipment_id}</a></td>"
+                    "<td>${r.description}</td><td>${r.reported_date}</td>"
+                    "<td>${r.completed_date||'-'}</td><td>${r.status}</td>"
+                    "<td>$${r.cost.toFixed(2)}</td></tr>`);"
+                    "if(!records.length)rows.innerHTML='<tr><td colspan=\"7\">No maintenance records.</td></tr>';"
+                    "</script></body></html>",
+                    shared_navigation, shared_footer, json);
+    }
+  } else if (mg_match(message->uri, mg_str("/about"), NULL)) {
+    mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
+                  "<!doctype html><html><head><meta charset=\"utf-8\">"
+                  "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+                  "<title>About</title><link "
+                  "href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
+                  "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                  "%s<main class=\"container py-5 flex-grow-1\"><h1>About the Lending Library</h1>"
+                  "<p class=\"lead\">A centralized system for equipment, borrowers, loans, and maintenance.</p>"
+                  "<h2 class=\"h4\">How borrowing works</h2><ol><li>Browse the equipment catalog.</li>"
+                  "<li>Choose available equipment.</li><li>Create a loan from the Manage page.</li>"
+                  "<li>Record the return when the item is returned.</li></ol>"
+                  "<h2 class=\"h4 mt-4\">How maintenance works</h2><p>Maintenance records place equipment "
+                  "out of service until staff completes the repair.</p></main>%s"
+                  "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                  "</body></html>",
+                  shared_navigation, shared_footer);
   } else if (mg_match(message->uri, mg_str("/manage"), NULL)) {
     mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
                   "<!doctype html><html><head><meta charset=\"utf-8\">"
                   "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
                   "<title>Manage Equipment</title>"
                   "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
-                  "rel=\"stylesheet\"></head><body><main class=\"container py-4\">"
+                  "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                  "%s<main class=\"container py-4 flex-grow-1\">"
                   "<h1>Equipment Management</h1><p id=\"message\"></p>"
                   "<h2 class=\"h4\">Add equipment</h2><form id=\"equipment\" class=\"row g-2\">"
                   "<input class=\"form-control\" name=\"name\" placeholder=\"Name\" required>"
@@ -375,6 +477,7 @@ static void http_handler(struct mg_connection *connection, int event,
                   "type=\"number\" step=\"0.01\" placeholder=\"Updated cost\"><button class=\"btn btn-info\" "
                   "type=\"submit\">Update maintenance</button></form>"
                   "<p class=\"mt-4\"><a href=\"/equipment\">Catalog</a> | <a href=\"/\">Home</a></p>"
+                  "</main>%s"
                   "<script>const message=document.getElementById('message');"
                   "async function submitForm(event,id,url){event.preventDefault();const form=document.getElementById(id);"
                   "const response=await fetch(url,{method:'POST',body:new URLSearchParams(new FormData(form))});"
@@ -393,21 +496,38 @@ static void http_handler(struct mg_connection *connection, int event,
                   "document.getElementById('return').onsubmit=e=>recordForm(e,'return','/api/loans/return-equipment/{id}','POST');"
                   "document.getElementById('complete').onsubmit=e=>recordForm(e,'complete','/api/maintenance/complete/{id}','POST');"
                   "document.getElementById('maintenance-update').onsubmit=e=>recordForm(e,'maintenance-update','/api/maintenance/{id}','PUT');"
-                  "</script></main></body></html>");
+                  "</script><script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                  "</body></html>",
+                  shared_navigation, shared_footer);
   } else if (mg_match(message->uri, mg_str("/"), NULL)) {
-    mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
-                  "<!doctype html><html lang=\"en\"><head>"
-                  "<meta charset=\"utf-8\"><meta name=\"viewport\" "
-                  "content=\"width=device-width, initial-scale=1\">"
-                  "<title>Equipment Lending Library</title>"
-                  "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
-                  "rel=\"stylesheet\"></head><body><main class=\"container py-5\">"
-                  "<h1>Equipment Lending Library</h1>"
-                  "<p class=\"lead\">Database-backed application foundation</p>"
-                  "<p>SQLite is initialized with the lending-library tables.</p>"
-                  "<a class=\"btn btn-primary\" href=\"/equipment\">Browse equipment</a> "
-                  "<a class=\"btn btn-secondary\" href=\"/manage\">Manage equipment</a>"
-                  "</main></body></html>");
+    char stats[256];
+    if (database_dashboard_json("data/equipment.db", stats, sizeof(stats)) != 0) {
+      mg_http_reply(connection, 500, "Content-Type: text/plain\r\n",
+                    "Dashboard unavailable\n");
+    } else {
+      mg_http_reply(connection, 200, "Content-Type: text/html; charset=utf-8\r\n",
+                    "<!doctype html><html lang=\"en\"><head>"
+                    "<meta charset=\"utf-8\"><meta name=\"viewport\" "
+                    "content=\"width=device-width, initial-scale=1\">"
+                    "<title>Equipment Lending Library</title>"
+                    "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\" "
+                    "rel=\"stylesheet\"></head><body class=\"d-flex flex-column min-vh-100\">"
+                    "%s<main class=\"container py-5 flex-grow-1\"><h1>Equipment Lending Dashboard</h1>"
+                    "<p class=\"lead\">Manage inventory, borrowers, loans, and maintenance.</p>"
+                    "<div id=\"stats\" class=\"row g-3\"></div><div class=\"mt-4\">"
+                    "<a class=\"btn btn-primary\" href=\"/equipment\">Browse equipment</a> "
+                    "<a class=\"btn btn-secondary\" href=\"/manage\">Manage equipment</a> "
+                    "<a class=\"btn btn-outline-dark\" href=\"/loans\">View loans</a></div></main>"
+                    "%s<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js\"></script>"
+                    "<script>const s=%s;document.getElementById('stats').innerHTML="
+                    "[['Total items',s.total,'primary'],['Available',s.available,'success'],"
+                    "['Borrowed',s.borrowed,'warning'],['Maintenance',s.maintenance,'danger'],"
+                    "['Active loans',s.active_loans,'info']].map(([label,value,color])=>"
+                    "`<div class=\"col-md-4\"><div class=\"card border-${color}\"><div class=\"card-body\">"
+                    "<h2 class=\"h5\">${label}</h2><p class=\"display-6\">${value}</p></div></div></div>`).join('');"
+                    "</script></body></html>",
+                    shared_navigation, shared_footer, stats);
+    }
   } else {
     mg_http_reply(connection, 404, "", "Not found\n");
   }

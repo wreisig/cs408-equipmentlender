@@ -33,5 +33,7 @@ int database_maintenance_update(const char *path, int maintenance_id,
                                 const char *description, double cost);
 int database_maintenance_complete(const char *path, int maintenance_id);
 int database_maintenance_json(const char *path, char *output, size_t output_size);
+int database_dashboard_json(const char *path, char *output, size_t output_size);
+int database_loans_json(const char *path, char *output, size_t output_size);
 
 #endif

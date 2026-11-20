@@ -187,6 +187,22 @@ can be viewed with `GET /api/maintenance`, updated with
 the equipment status to `Maintenance`, which prevents borrowing until the
 record is completed.
 
+## Checkpoint 6 complete application pages
+
+The application now uses consistent Bootstrap navigation and a shared footer across
+the seven-page user interface:
+
+1. `/` - dashboard with equipment totals and active-loan statistics
+2. `/equipment` - searchable, filterable equipment catalog
+3. `/equipment/<id>` - individual equipment details
+4. `/manage` - equipment, loan, return, and maintenance management forms
+5. `/loans` - current and historical loan records
+6. `/maintenance` - open and completed maintenance records
+7. `/about` - lending process and maintenance help
+
+Navigation links connect all pages, and each page provides links back into the
+catalog or management workflows.
+
 ## Checkpoint 1 scope
 
 ### Core functionality

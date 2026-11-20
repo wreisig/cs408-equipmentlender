@@ -528,3 +528,64 @@ int database_maintenance_json(const char *path, char *output, size_t output_size
   sqlite3_close(db);
   return result == SQLITE_OK ? 0 : 1;
 }
+
+int database_dashboard_json(const char *path, char *output, size_t output_size) {
+  sqlite3 *db = NULL;
+  int total = 0, available = 0, borrowed = 0, maintenance = 0, active_loans = 0;
+  int result = sqlite3_open(path, &db);
+  sqlite3_stmt *statement = NULL;
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "SELECT (SELECT COUNT(*) FROM equipment),"
+      "(SELECT COUNT(*) FROM equipment WHERE status='Available'),"
+      "(SELECT COUNT(*) FROM equipment WHERE status='Borrowed'),"
+      "(SELECT COUNT(*) FROM equipment WHERE status='Maintenance'),"
+      "(SELECT COUNT(*) FROM loans WHERE status='Active' AND return_date IS NULL);",
+      -1, &statement, NULL);
+  if (result == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW) {
+    total = sqlite3_column_int(statement, 0);
+    available = sqlite3_column_int(statement, 1);
+    borrowed = sqlite3_column_int(statement, 2);
+    maintenance = sqlite3_column_int(statement, 3);
+    active_loans = sqlite3_column_int(statement, 4);
+  }
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  if (result != SQLITE_OK) return 1;
+  if (snprintf(output, output_size,
+      "{\"total\":%d,\"available\":%d,\"borrowed\":%d,\"maintenance\":%d,"
+      "\"active_loans\":%d}", total, available, borrowed, maintenance,
+      active_loans) >= (int)output_size) return 1;
+  return 0;
+}
+
+int database_loans_json(const char *path, char *output, size_t output_size) {
+  sqlite3 *db = NULL;
+  sqlite3_stmt *statement = NULL;
+  size_t used = 0;
+  int rows = 0;
+  int result = sqlite3_open(path, &db);
+  if (result == SQLITE_OK) result = sqlite3_prepare_v2(db,
+      "SELECT l.loan_id,l.equipment_id,e.name,b.name,l.checkout_date,l.due_date,"
+      "COALESCE(l.return_date,''),l.status FROM loans l "
+      "JOIN equipment e ON e.equipment_id=l.equipment_id "
+      "JOIN borrowers b ON b.borrower_id=l.borrower_id "
+      "ORDER BY l.loan_id DESC;", -1, &statement, NULL);
+  used = (size_t)snprintf(output, output_size, "[");
+  while (result == SQLITE_OK && sqlite3_step(statement) == SQLITE_ROW) {
+    int written = snprintf(output + used, output_size - used,
+      "%s{\"id\":%d,\"equipment_id\":%d,\"equipment\":\"%s\",\"borrower\":\"%s\","
+      "\"checkout_date\":\"%s\",\"due_date\":\"%s\",\"return_date\":\"%s\",\"status\":\"%s\"}",
+      rows++ == 0 ? "" : ",", sqlite3_column_int(statement, 0),
+      sqlite3_column_int(statement, 1), sqlite3_column_text(statement, 2),
+      sqlite3_column_text(statement, 3), sqlite3_column_text(statement, 4),
+      sqlite3_column_text(statement, 5), sqlite3_column_text(statement, 6),
+      sqlite3_column_text(statement, 7));
+    if (written < 0 || (size_t)written >= output_size - used) result = SQLITE_TOOBIG;
+    else used += (size_t)written;
+  }
+  if (result == SQLITE_OK && used + 2 <= output_size)
+    (void)snprintf(output + used, output_size - used, "]");
+  sqlite3_finalize(statement);
+  sqlite3_close(db);
+  return result == SQLITE_OK ? 0 : 1;
+}
